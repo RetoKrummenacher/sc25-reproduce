@@ -2,30 +2,46 @@
 
 The following is a description of artifacts for the poster under review 'Seamless Scaling of Applications Across Programming Models'.
 
-
 ## Structure of the repository
 
 ### Hardware information 
 [collect_environment.txt](collect_environment.txt) contains detailed hardware information collected with [collect_environment.sh](collect_environment.sh)
 
-### [`benchmark_scripts`](benchmark_scripts)
+### [Conda Environments](conda_envs)
+
+- [`snakemake.yml`](conda_envs/snakemake.yml)
+- [`code_metrics.yml`](conda_envs/code_metrics.yml)
+- [`plotting.yml`](conda_envs/plotting.yml)
+
+To use them on Vega:  
+```console
+module load Anaconda
+conda env create -f snakemake.yml
+conda activate snakemake
+```
+
+### [Benchmark Scripts](benchmark_scripts)
 
 Each of the folder contains the code for the sequential/parallel (SePa) and distributed (`-mpi`, Dist) versions of the GAP Benchmark.
 
 In each benchmark folder, there is one folder per language (`cpp`, `daph`, `jl`, `py`), note that that there is no `daph` folder for the `mpi` version as the mpi version is the same as the sequential one.
 
-### `sbatch_scripts`
+### [Sbatch Scripts](sbatch_scripts)
 
-This folder contains the `sbatch` scripts used to execute the different languages in the different context (sequential, parallel, distributed).
+This folder contains the `sbatch` scripts used to execute the different languages in the different context (sequential and parallel, distributed).
 
 The interface is as follow:
 
+1. For local parallel:
 ```console
-sbatch ./sbatch_scripts/run_xeon_{LANG}.sh {NUM_THREADS} {SRC_FILE_PATH} {MATRIX_PATH} {MATRIX_SIZE} {OUTPUT_FILE}
+sbatch ./sbatch_scripts/run_vega_{LANG}.sh {NUM_THREADS} {SRC_FILE_PATH} {MATRIX_PATH} {MATRIX_SIZE} {OUTPUT_FILE}
+```
+2. For distributed with MPI:
+```console
+sbatch ./sbatch_scripts/run_vega_{LANG}_mpi.sh {NUM_THREADS} {SRC_FILE_PATH} {MATRIX_PATH} {MATRIX_SIZE} {OUTPUT_FILE}
 ```
 
 where:
-
 - `{LANG}` is the language short name (`cpp`, `daph`, `jl`, `py`)
 
 - `{NUM_THREADS}` is the number of threads to use.
@@ -38,17 +54,11 @@ where:
 
 - `{OUTPUT_FILE}` is the path where to store the result of the execution
 
-### `workflow`
+### [Workflow](workflow)
 
 This folder contains the heavy lifting of the experiments.
 
-The workflow is managed by [Snakemake](https://snakemake.readthedocs.io/en/stable/).
-
-On MiniHPC, you can load the Snakemake module:
-
-```console
-module load snakemake
-```
+The workflow is managed by [Snakemake](https://snakemake.readthedocs.io/en/stable/). On Vega, you can execute `Snakemake` from the provided [Conda](https://anaconda.org/anaconda/conda) environment [`snakemake.yml`](conda_envs/snakemake.yml):
 
 #### `.smk` files
 
@@ -60,20 +70,15 @@ module load snakemake
 
 - `build.smk`: file containing the steps to build DAPHNE (download source code (commit in `doe.smk`), download singularity image, and compile)
 
-- `daphne_local.smk`: file containing the rules for a single node experiments with DAPHNE executing all the benchmark on all the matrices for a given number of threads, for a set of scheduling schemes, and repeated a given number of time (all the paramaters are defined in `doe.smk`).
+- `experiments.smk`: file containing the rules for an experiment comparing the scaling ability of threads on a single node.
 
-- `experiments_mpi_vs_omp.smk`: file containing the rules for an experiment comparing the scaling ability of threads (`omp`, bad naming i know) and `mpi` processes on a single machine.
+- `experiments_mpi_local.smk`: file containing the rules for an experiment comparing the scaling ability of `mpi` processes on a single node.
 
-- `experiments_mpi.smk`: file containing the rules for an experiment comparing the scalability performance of all the languages.
+- `experiments_mpi_scale_nodes.smk`: file containing the rules for an experiment comparing the scaling ability of `mpi` processes on a multiple node.
 
-- `experiments_full_mpi.smk`: file containing the rules for an experiments
+#### Snakemake 101
 
-- `analysis.smk`: file containing rules to produce the aggregated CSV files. **This workflow uses R, I recommand using the Nix Flake to get the R environment on your laptop, not miniHPC**
-
-
-### Snakemake 101
-
-**All the snakemake commands are to be ran from the root of the repository**
+**All the Snakemake commands are to be ran from the root of the repository**
 
 To dry-run a workflow:
 
@@ -81,30 +86,66 @@ To dry-run a workflow:
 snakemake -s {WORKFLOW_FILE}.smk -n
 ```
 
-To execute a workflow with 4 parallel processes:
+To execute a workflow with 2 parallel processes and other important flags:
 
-```console
-snakemake -s {WORKFLOW_FILE}.smk -c 4
-```
+- `--cores`: run workflow with parallel processes
 
-As the data will be written on the NFS it is good practice to tell Snakemake that there might be some latency in the filesystem:
+- `--jobs`: run workflow bt submitting this many jobs at a time
 
-```console
-snakemake -s {WORKFLOW_FILE}.smk -c 4 --latency-wait 60
-```
-
-Some other important flags:
+- `--latency-wait`: as the data will be written on the NFS it is good practice to tell Snakemake that there might be some latency in the filesystem:
 
 - `--keep-going`: continue to execute the workflow even if one job failed.
 
 - `--rerun-incomplete`: rerun jobs that have been stopped in a weird state before.
 
-### `workflow/scripts`
+```console
+snakemake -s {WORKFLOW_FILE}.smk --cores 2 --jobs 20 --latency-wait 60 --keep-going --rerun-incomplete
+```
 
-This folder contains the source code for some scripts used in the repo (e.g., R analysis scripts, python script to update the `.mtx` files)
+Tell Snakemake to check what output files are already existing to avoid repetition of experiment if not needed:
 
-### `flake.nix` and `flake.lock`
+```console
+snakemake -s {WORKFLOW_FILE}.smk --touch --rerun-incomplete
+```
 
-[Nix](https://nixos.org) environement for the workflow (snakemake, python, cpp, julia, R), and to create the container for the non-DAPHNE languages.
+### [Data](data)
+This folder contains all experimental results.
 
-Nix is not supported on MiniHPC, but I recomment to use Nix on your laptop.
+- [`Sequential and local parallel`](data/seq-local/)
+- [`Local MPI`](data/mpi_local/)
+- [`MPI on multiple nodes`](data/mpi_scale_nodes/)
+
+The `.dat` files contain the end-to-end and the computation time together with the algorithm result for correctness check:  
+`/{MATRIX}/{BENCHMARK}/{LANG}/{PARALLELISM}/{REP}.dat`
+
+where:
+- `{MATRIX}` is the input matrix either `amazon0601` or `wikipedia-20070206`
+
+- `{BENCHMARK}` is `connected_components`
+
+- `{LANG}` is the language short name (`cpp`, `daph`, `jl`, `py`)
+
+- `{PARALLELISM}` is the number of threads, mpi processes, or nodes used
+
+- `{REP}` is the repetition of each experiments
+
+### [`Plots`](plots)
+The Jupyter notebook `plots.ipynb` that creates the plots from the results and the final [plots](plots/performance/). To have all dependencies, execute the notebook from [plotting.yml](conda_envs/plotting.yml)
+
+### [Coding Productivity](coding_productivity)
+
+- The adapted version of [`multimetric`](coding_productivity/multimetric/) [1] which includes language support for DaphneDSL and collects the source lines of code (SLOC).
+- The collected [metrics](coding_productivity/metrics/) in `.json` format.
+
+Execute `multimetric` with the provided [code_metrics.yml](conda_envs/code_metrics.yml) with:
+
+```
+ multimetric  input.cpp > output.json
+```
+
+
+## References
+[1] Konrad Weihmann. multimetric. Version 2.2.2. Accessed July 10, 2025. 2025. [https://github.com/priv-kweihmann/multimetric](https://github.com/priv-kweihmann/multimetric).
+
+
+
