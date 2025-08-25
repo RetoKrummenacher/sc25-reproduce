@@ -16,8 +16,14 @@ The following is a description of artifacts for the poster under review 'Seamles
 To use them on Vega:  
 ```console
 module load Anaconda
-conda env create -f snakemake.yml
+conda env create -f snakemake.yml  --name snakemake
 conda activate snakemake
+```
+
+If this does not work, you might need to allow environment activation before activating.
+```console
+conda init bash
+source ~/.bashrc
 ```
 
 ### [Benchmark Scripts](benchmark_scripts)
@@ -102,7 +108,7 @@ To execute a workflow with 2 parallel processes and other important flags:
 snakemake -s {WORKFLOW_FILE}.smk --cores 2 --jobs 20 --latency-wait 60 --keep-going --rerun-incomplete
 ```
 
-Tell Snakemake to check what output files are already existing to avoid repetition of experiment if not needed:
+Tell Snakemake to check what output files already exist to avoid repetition of experiments if not needed:
 
 ```console
 snakemake -s {WORKFLOW_FILE}.smk --touch --rerun-incomplete
@@ -137,12 +143,17 @@ The Jupyter notebook `plots.ipynb` that creates the plots from the results and t
 - The adapted version of [`multimetric`](coding_productivity/multimetric/) [1] which includes language support for DaphneDSL and collects the source lines of code (SLOC).
 - The collected [metrics](coding_productivity/metrics/) in `.json` format.
 
-Execute `multimetric` with the provided [code_metrics.yml](conda_envs/code_metrics.yml) with:
+Execute `multimetric` from within the created Conda environment from the provided [code_metrics.yml](conda_envs/code_metrics.yml):
 
 ```
- multimetric  input.cpp > output.json
+ multimetric {SCRIPT_FILE} > {OUTPUT_FILE}
 ```
 
+where:
+
+- `{SCRIPT_FILE}` is the path if the script to analyze, e.g., `/benchmarkt_scripts/connected_components/cpp/connected_components.cpp`
+
+- `{OUTPUT_FILE}` is the path where to store the result of the execution
 
 ## References
 [1] Konrad Weihmann. multimetric. Version 2.2.2. Accessed July 10, 2025. 2025. [https://github.com/priv-kweihmann/multimetric](https://github.com/priv-kweihmann/multimetric).
