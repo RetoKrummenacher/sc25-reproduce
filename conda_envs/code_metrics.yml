@@ -22,4 +22,3 @@ dependencies:
   - pip:
       - chardet==5.2.0
       - pygments==2.19.2
-prefix: /opt/miniconda3/envs/code-metrics

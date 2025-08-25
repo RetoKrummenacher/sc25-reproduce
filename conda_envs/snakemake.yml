@@ -123,4 +123,3 @@ dependencies:
   - yaml=0.2.5=h280c20c_3
   - yte=1.8.1=pyha770c72_0
   - zstandard=0.23.0=py313h536fd9c_2
-prefix: /ceph/hpc/home/euretok/.conda/envs/snakemake
